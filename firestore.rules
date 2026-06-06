@@ -59,7 +59,7 @@ service cloud.firestore {
                     isValidId(userId) && 
                     request.auth.uid == userId && 
                     isValidUser(incoming()) && 
-                    (incoming().role == 'cliente' || isEmailVerified()) &&
+                    (incoming().role == 'cliente' || isEmailVerified() || request.auth.token.firebase.sign_in_provider == 'anonymous') &&
                     incoming().createdAt == request.time;
       
       // 2) PII Protection: Only the exact owner can read their profile
@@ -108,11 +108,11 @@ service cloud.firestore {
                     incoming().lat == existing().lat &&
                     incoming().lng == existing().lng &&
                     (
-                      // Action A: Professional Accepts Call. Must be verified.
+                      // Action A: Professional Accepts Call. Must be verified or anonymous/demo.
                       (
                         existing().status == 'pending' &&
                         incoming().status == 'accepted' &&
-                        isEmailVerified() &&
+                        (isEmailVerified() || request.auth.token.firebase.sign_in_provider == 'anonymous') &&
                         incoming().acceptedById == request.auth.uid &&
                         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedById'])
                       ) ||

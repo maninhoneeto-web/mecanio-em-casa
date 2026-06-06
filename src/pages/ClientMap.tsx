@@ -115,6 +115,7 @@ export default function ClientMap() {
         basePayload.vehicle = location.state.formData.vehicle;
         basePayload.problemDescription = location.state.formData.problemDescription;
         basePayload.region = location.state.formData.region;
+        basePayload.clientPhone = location.state.formData.clientPhone || "";
       }
 
       const docRef = await addDoc(callsCol, basePayload);
