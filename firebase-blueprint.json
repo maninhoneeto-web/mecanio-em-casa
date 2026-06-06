@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents either a Client generating leads or a Professional paying to answer them.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["cliente", "profissional"] },
+        "name": { "type": "string", "description": "Display name of the user" },
+        "email": { "type": "string", "description": "Email (PII) - protected" },
+        "createdAt": { "type": "string", "description": "Timestamp" },
+        "serviceType": { "type": "string", "description": "(Pro only) the field of expertise" },
+        "plan": { "type": "string", "enum": ["bronze", "prata", "ouro", "none"], "description": "(Pro only) subscription rank" },
+        "credits": { "type": "integer", "description": "(Pro only) balance to accept calls" }
+      },
+      "required": ["role", "name", "email", "createdAt"]
+    },
+    "ServiceCall": {
+      "title": "ServiceCall",
+      "description": "A rescue request dropped onto the map.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "serviceRequested": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "completed", "cancelled"] },
+        "createdAt": { "type": "string" },
+        "acceptedById": { "type": "string" }
+      },
+      "required": ["clientId", "serviceRequested", "lat", "lng", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Global user accounts, split internally by 'role'."
+    },
+    "/serviceCalls/{callId}": {
+      "schema": { "$ref": "#/entities/ServiceCall" },
+      "description": "The active job requests on the map."
+    }
+  }
+}

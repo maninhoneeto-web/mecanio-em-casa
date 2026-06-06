@@ -1,0 +1,10 @@
+{
+  "name": "Mecânico em Casa",
+  "description": "Aplicativo de socorro mecânico sob demanda (estilo Uber para mecânicos) focando inicialmente na região de Brasília (DF).",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

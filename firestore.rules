@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- PRIMITIVE GUARDS ---
+    function isSignedIn() { 
+      // Clients can be anonymous, Professionals use Google.
+      return request.auth != null; 
+    }
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    // --- BLUEPRINTS (VALIDATION HELPERS) ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['role', 'name', 'email', 'createdAt']) &&
+             ((data.role == 'cliente' && data.keys().size() >= 4) ||
+              (data.role == 'profissional' && data.keys().hasAll(['serviceType', 'plan', 'credits']))) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 150 && 
+             data.createdAt is timestamp &&
+             (!('serviceType' in data) || data.serviceType is string) &&
+             (!('plan' in data) || data.plan in ['bronze', 'prata', 'ouro', 'none']) &&
+             (!('credits' in data) || data.credits is number);
+    }
+
+    function isValidServiceCall(data) {
+      return data.keys().hasAll(['clientId', 'serviceRequested', 'lat', 'lng', 'status', 'createdAt']) &&
+             data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128 &&
+             data.serviceRequested is string && data.serviceRequested.size() > 0 && data.serviceRequested.size() <= 100 &&
+             data.lat is number &&
+             data.lng is number &&
+             data.status in ['pending', 'accepted', 'completed', 'cancelled'] &&
+             data.createdAt is timestamp &&
+             // Handle optional/variable fields safely
+             (!('baseCrCost' in data) || data.baseCrCost is number) &&
+             (!('unlockedBy' in data) || (data.unlockedBy is list && data.unlockedBy.size() <= 10)) &&
+             (!('clientName' in data) || (data.clientName is string && data.clientName.size() <= 150)) &&
+             (!('vehicle' in data) || (data.vehicle is string && data.vehicle.size() <= 150)) &&
+             (!('problemDescription' in data) || (data.problemDescription is string && data.problemDescription.size() <= 1000)) &&
+             (!('region' in data) || (data.region is string && data.region.size() <= 150)) &&
+             (!('acceptedById' in data) || (data.acceptedById is string && data.acceptedById.size() <= 128));
+    }
+
+    // --- COLLECTION: USERS ---
+    match /users/{userId} {
+      // 1) Identity Integrity: only the owner can create their profile.
+      allow create: if isSignedIn() && 
+                    isValidId(userId) && 
+                    request.auth.uid == userId && 
+                    isValidUser(incoming()) && 
+                    (incoming().role == 'cliente' || isEmailVerified()) &&
+                    incoming().createdAt == request.time;
+      
+      // 2) PII Protection: Only the exact owner can read their profile
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false; // No blanket listing of users to prevent data scraping
+      
+      // 3) Strict Updates: Immutable roles and createdAt cannot be modified.
+      allow update: if isSignedIn() && 
+                    isValidId(userId) && 
+                    request.auth.uid == userId && 
+                    isValidUser(incoming()) &&
+                    incoming().role == existing().role &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().email == existing().email &&
+                    incoming().diff(existing()).affectedKeys().hasAny(['name', 'serviceType', 'plan', 'credits']) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'serviceType', 'plan', 'credits']);
+    }
+
+    // --- COLLECTION: SERVICE CALLS ---
+    match /serviceCalls/{callId} {
+      // 1) Creation Guard: Status must be pending, owner is clientId, requires strict schema size (no ghosts)
+      allow create: if isSignedIn() && 
+                    isValidServiceCall(incoming()) && 
+                    incoming().clientId == request.auth.uid && 
+                    incoming().status == 'pending' &&
+                    incoming().createdAt == request.time &&
+                    !('acceptedById' in incoming());
+
+      // 2) Secure List Queries: Can list/get if pending (public mural list) or logged in and involved/unlocked.
+      allow get: if existing().status == 'pending' || 
+                 (isSignedIn() && isValidId(callId) && 
+                  (existing().clientId == request.auth.uid || existing().acceptedById == request.auth.uid || (existing().unlockedBy is list && request.auth.uid in existing().unlockedBy)));
+                 
+      allow list: if resource.data.status == 'pending' || 
+                  (isSignedIn() && 
+                   (resource.data.clientId == request.auth.uid || resource.data.acceptedById == request.auth.uid || (resource.data.unlockedBy is list && request.auth.uid in resource.data.unlockedBy)));
+
+      // 3) Action-Based Updates: We divide state transitions using boolean ORs.
+      allow update: if isSignedIn() && 
+                    isValidId(callId) && 
+                    isValidServiceCall(incoming()) &&
+                    // Immutable enforcement
+                    incoming().clientId == existing().clientId &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().serviceRequested == existing().serviceRequested &&
+                    incoming().lat == existing().lat &&
+                    incoming().lng == existing().lng &&
+                    (
+                      // Action A: Professional Accepts Call. Must be verified.
+                      (
+                        existing().status == 'pending' &&
+                        incoming().status == 'accepted' &&
+                        isEmailVerified() &&
+                        incoming().acceptedById == request.auth.uid &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acceptedById'])
+                      ) ||
+                      // Action B: Client or Assigned Professional Cancels
+                      (
+                        existing().status in ['pending', 'accepted'] &&
+                        incoming().status == 'cancelled' &&
+                        (request.auth.uid == existing().clientId || request.auth.uid == existing().acceptedById) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+                      ) ||
+                      // Action C: Complete lead (owner client or unlocked professional can set completed status)
+                      (
+                        incoming().status == 'completed' &&
+                        (request.auth.uid == existing().clientId || (existing().unlockedBy is list && request.auth.uid in existing().unlockedBy)) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+                      ) ||
+                      // Action D: Professional updates unlockedBy list (join/leave a lead)
+                      (
+                        incoming().diff(existing()).affectedKeys().hasOnly(['unlockedBy']) &&
+                        (
+                          // Option 1: Join lead (adds request.auth.uid)
+                          (incoming().unlockedBy.size() == existing().unlockedBy.size() + 1 && incoming().unlockedBy.hasAll(existing().unlockedBy)) ||
+                          // Option 2: Leave/Cancel lead (removes request.auth.uid)
+                          (incoming().unlockedBy.size() == existing().unlockedBy.size() - 1 && existing().unlockedBy.hasAll(incoming().unlockedBy))
+                        )
+                      )
+                    );
+    }
+  }
+}
