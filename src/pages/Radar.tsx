@@ -361,6 +361,30 @@ export default function Radar() {
               </div>
 
               <div className="p-6 overflow-y-auto space-y-6">
+                 {!user && (
+                    <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl text-center space-y-3 mb-4">
+                       <h3 className="text-xs font-black text-cyan-400 flex items-center justify-center gap-1.5 uppercase tracking-wide">
+                         <Zap size={14} className="fill-cyan-400 animate-pulse" />
+                         Entrada Rápida / Modo Teste
+                       </h3>
+                       <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                         Como você está no ambiente de desenvolvimento, o pop-up do Google pode dar erro de autorização. Use o botão abaixo para entrar de forma instantânea sem precisar de conta do Google!
+                       </p>
+                       <button
+                          onClick={async () => {
+                            try {
+                              await signIn("profissional", true);
+                            } catch (e: any) {
+                              alert("Erro no login simulado: " + e.message);
+                            }
+                          }}
+                          className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-lg shadow-cyan-500/10"
+                       >
+                          <Zap size={12} className="fill-slate-950" />
+                          Entrar como Mecânico Demo
+                       </button>
+                    </div>
+                  )}
                  
                  <div className="text-center">
                     <p className="text-slate-400 text-sm mb-2">{user ? 'Seus Créditos Atuais' : 'Você precisa entrar para comprar créditos'}</p>

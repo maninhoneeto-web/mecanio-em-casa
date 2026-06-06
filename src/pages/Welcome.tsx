@@ -101,7 +101,7 @@ export default function Welcome() {
             Brasília & Região – Online Agora
           </div>
 
-        <Logo size="lg" className="mb-8" />
+        <Logo size="lg" className="mb-8" showText={true} />
 
         <h1 className="text-5xl font-black tracking-tighter text-white leading-none mb-2">
           MECÂNICO

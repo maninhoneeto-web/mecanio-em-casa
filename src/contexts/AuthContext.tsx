@@ -14,7 +14,7 @@ interface AuthContextType {
   user: FirebaseUser | null;
   userData: any | null;
   loading: boolean;
-  signIn: (role: "cliente" | "profissional") => Promise<void>;
+  signIn: (role: "cliente" | "profissional", useDemo?: boolean) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -49,12 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  const signIn = async (role: "cliente" | "profissional") => {
+  const signIn = async (role: "cliente" | "profissional", useDemo: boolean = false) => {
     setLoading(true);
     try {
       let result;
-      if (role === "cliente") {
-        // Silent anonymous login for clients
+      if (role === "cliente" || useDemo) {
+        // Silent anonymous login for clients or as a demo professional fallback
         result = await signInAnonymously(auth);
       } else {
         // Regular Google login for professionals
@@ -69,7 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!userSnap.exists()) {
         const payload: any = {
           role,
-          name: role === "cliente" ? "Cliente de Socorro" : (result.user.displayName || "Profissional"),
+          name: role === "cliente" 
+            ? "Cliente de Socorro" 
+            : (useDemo ? "Mecânico Demo (Sem Conta Google)" : (result.user.displayName || "Profissional")),
           email: result.user.email || "", // Anonymous doesn't have email
           createdAt: serverTimestamp()
         };
@@ -77,18 +79,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (role === "profissional") {
           payload.serviceType = "mecanico"; // default for now
           payload.plan = "bronze";
-          payload.credits = 5; // starting credits
+          payload.credits = 1000; // Give generous credits in demo mode to play around!
         }
 
         await setDoc(userRef, payload);
         setUserData(payload);
       } else {
-        setUserData(userSnap.data());
+        const existingData = userSnap.data();
+        if (existingData && existingData.role !== role) {
+          const updatedPayload = {
+            ...existingData,
+            role,
+            credits: existingData.credits !== undefined ? existingData.credits : 1000
+          };
+          await setDoc(userRef, updatedPayload);
+          setUserData(updatedPayload);
+        } else {
+          setUserData(existingData);
+        }
       }
     } catch (error: any) {
       console.error("Error signing in", error);
       if (error.code === 'auth/operation-not-allowed') {
         alert("⚠️ ATENÇÃO DESENVOLVEDOR: Você precisa ir no Console do Firebase > Authentication > Sign-in Method e ATIVAR a opção 'Anônimo' (Anonymous) para que clientes possam pedir socorro sem e-mail/senha!");
+      } else if (error.code === 'auth/unauthorized-domain' || error.message?.includes('unauthorized-domain')) {
+        const confirmDemo = window.confirm(
+          "⚠️ ERRO DE OUTRO DOMÍNIO / AUTORIZAÇÃO (Firebase):\n\n" +
+          "O domínio de desenvolvimento atual não está na lista de autorizados do Firebase Console.\n\n" +
+          "Deseja entrar no MODO DEMO/TESTE (Entrada Rápida) com 1000 CR de saldo de créditos para testar o radar, liberar contatos e simular a compra de créditos?"
+        );
+        if (confirmDemo) {
+          // Retry automatically in demo mode
+          await signIn(role, true);
+        }
       } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
         alert("O login foi cancelado ou a janela foi fechada. DICA: Se você estiver testando pela janela pequena do Google AI Studio, clique no ícone 'Open in new tab' lá em cima no canto direito e tente logar pelo site em tela cheia!");
       } else if (error.code === 'auth/popup-blocked') {
