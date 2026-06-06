@@ -246,8 +246,37 @@ export default function Radar() {
         credits: userData.credits - cost,
       });
 
+      const cleanPhone = (call.clientPhone || "").replace(/\D/g, "");
+      let formattedPhone = cleanPhone;
+      if (
+        (formattedPhone.length === 10 || formattedPhone.length === 11) &&
+        !formattedPhone.startsWith("55")
+      ) {
+        formattedPhone = "55" + formattedPhone;
+      }
+      
+      const tipoServico = call.serviceRequested === "mecanicos" ? "mecanica geral" 
+                        : call.serviceRequested === "socorro" ? "socorro rápido" 
+                        : call.serviceRequested === "guincho" ? "guincho" 
+                        : call.serviceRequested === "eletrica" ? "auto eletrica"
+                        : call.serviceRequested === "pneu" ? "borracharia"
+                        : call.serviceRequested === "chaveiro" ? "chaveiro" : call.serviceRequested;
+
+      const messageText = encodeURIComponent(
+        `Olá ${call.clientName || "Cliente"}, sou parceiro no Mecânico em Casa. Vi que você acabou de solicitar um serviço de ${tipoServico} para o seu ${call.vehicle || "veículo"} em ${call.region || "Brasília"}. Como posso te ajudar?`
+      );
+      
+      const waUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${messageText}`;
+
+      // Open WhatsApp automatically
+      try {
+        window.open(waUrl, "_blank");
+      } catch (err) {
+        console.warn("Popup blocker prevented automatic WhatsApp redirect.", err);
+      }
+
       alert(
-        "Contato liberado! O cliente agora ligará para você, ou veja no chamado.",
+        `✅ Contato liberado com sucesso!\n\nEnviamos você diretamente para o WhatsApp do cliente ${call.clientName || ""}.\n\nSe a página não abriu, clique no botão verde "Falar no WhatsApp" que acabou de aparecer na lista de "Contatos Liberados" no topo da sua tela!`
       );
     } catch (err: any) {
       console.error("Erro ao aceitar:", err);
