@@ -41,6 +41,7 @@ export default function ClientMap() {
   // App State
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [callStatus, setCallStatus] = useState<string | null>(null);
+  const [activeCallData, setActiveCallData] = useState<any | null>(null);
 
   useEffect(() => {
     // If not logged in, boot back to home
@@ -56,10 +57,16 @@ export default function ClientMap() {
           setLocationFound(true);
         },
         (error) => {
-          console.error("GPS error", error);
+          console.error("GPS error, falling back to Brasilia Center:", error);
+          setPosition([-15.7938, -47.8827]); // Standard Brasilia coordinates
+          setLocationFound(true);
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 5000 }
       );
+    } else {
+      console.warn("Geolocation not supported by device, falling back to Brasilia Center.");
+      setPosition([-15.7938, -47.8827]);
+      setLocationFound(true);
     }
   }, [user, navigate]);
 
@@ -71,11 +78,7 @@ export default function ClientMap() {
       if (snapshot.exists()) {
         const data = snapshot.data();
         setCallStatus(data.status);
-        
-        if (data.status === 'accepted') {
-          // We can replace alert with better UI later, but keep simple for now
-          // alert("Profissional a caminho! Fique no local.");
-        }
+        setActiveCallData({ id: snapshot.id, ...data });
       }
     }, (error) => {
       console.error("Error watching active service call:", error);
@@ -204,20 +207,89 @@ export default function ClientMap() {
           className="pointer-events-auto bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-2xl"
         >
           {activeCallId ? (
-            <div className="text-center py-4">
-              <h3 className="text-xl font-bold text-white mb-2">
-                {callStatus === 'pending' ? 'Buscando profissional no Radar...' : 'Profissional Encontrado!'}
-              </h3>
-              <p className="text-slate-400 mb-6 font-light">
-                {callStatus === 'pending' ? 'Por favor aguarde, o chamado foi disparado para o mapa dos profissionais na região do DF.' : 'Mantenha a calma, o socorro está a caminho do seu local exato.'}
-              </p>
+            <div className="text-left space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#39ff14] animate-ping" />
+                    Chamado Ativo no Mural
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Seu pedido de <b>{selectedService}</b> está visível para os mecânicos do DF
+                  </p>
+                </div>
+                <div className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                  Buscando
+                </div>
+              </div>
 
-              <button 
-                onClick={handleCancel}
-                className="text-slate-500 underline text-sm hover:text-slate-300"
-              >
-                Cancelar Chamado
-              </button>
+              {/* LIVE LEADS UNLOCKED LIST */}
+              <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-black text-[#00f3ff] uppercase tracking-wider flex items-center gap-1.5">
+                    ⚡ Respostas de Profissionais (GetNinjas Flow):
+                  </span>
+                </div>
+                
+                {activeCallData && activeCallData.unlockedBy && activeCallData.unlockedBy.length > 0 ? (
+                  <div className="space-y-3 mt-3">
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Os seguintes parceiros pagaram para liberar seu contato e estão abrindo conversa direto no seu WhatsApp ({location.state?.formData?.clientPhone || "(61) 99999-9999"}):
+                    </p>
+                    {activeCallData.unlockedBy.map((uid: string, i: number) => (
+                      <div key={uid} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-left gap-2 animate-in fade-in zoom-in-95">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-full bg-emerald-500/20 flex items-center justify-center font-bold text-emerald-400 text-xs">
+                            M{i + 1}
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-white block">Mecânico Especialista #{i + 1}</span>
+                            <span className="text-[10px] text-slate-500">Créditos de chaves consumidos</span>
+                          </div>
+                        </div>
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[10px] font-bold self-start sm:self-auto flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Contato Liberado!
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <div className="w-6 h-6 border-2 border-slate-700 border-t-cyan-400 rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-xs text-slate-400">Aguardando algum mecânico local comprar e liberar este contato...</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Conforme as diretrizes do GetNinjas, até 5 parceiros podem adquirir este lead.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* QUICK BRIDGES FOR TESTING */}
+              <div className="p-3.5 rounded-xl bg-yellow-450/10 border border-yellow-400/20 text-xs text-yellow-400 mt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <span className="leading-normal font-medium">
+                  💡 <b>Ambiente de Simulação:</b> Você pode abrir o <b>Mural de Oportunidades</b> em outra aba ou clicando no atalho ao lado para assumir a conta de mecânico, gastar créditos fictícios e "Desbloquear" o seu próprio contato para ver como funciona o Whatsapp direto!
+                </span>
+                <button
+                  onClick={() => navigate("/radar")}
+                  className="px-3.5 py-2 bg-yellow-450 text-slate-950 hover:bg-yellow-400 font-extrabold text-[10px] rounded-lg transition-transform active:scale-95 shrink-0 uppercase tracking-widest"
+                >
+                  Ir para o Mural ➡️
+                </button>
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <button 
+                  onClick={handleCancel}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95"
+                >
+                  Cancelar Chamado
+                </button>
+                <button 
+                  onClick={() => navigate("/")}
+                  className="bg-slate-900 hover:bg-slate-800 text-slate-400 px-4 py-2.5 rounded-xl text-xs font-bold transition-all"
+                >
+                  Voltar para o Início
+                </button>
+              </div>
             </div>
           ) : (
             <>

@@ -12,6 +12,7 @@ import {
   orderBy,
   arrayUnion,
   addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db, handleFirestoreError } from "../lib/firebase";
 import Logo from "../components/Logo";
@@ -102,6 +103,7 @@ export default function Radar() {
       const randomCost = Math.floor(Math.random() * (220 - 80 + 1) + 80);
 
       const mockCall = {
+        clientId: "simulated_client",
         clientName: mockNames[randIndex],
         clientPhone: mockPhones[randIndex],
         vehicle: mockVehicles[randIndex],
@@ -113,7 +115,7 @@ export default function Radar() {
         status: "pending",
         baseCrCost: randomCost,
         unlockedBy: [],
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
       };
 
       const callsCol = collection(db, "serviceCalls");
@@ -300,6 +302,41 @@ export default function Radar() {
           onClick={() => setShowCreditsModal(true)}
           className="hidden"
         />
+
+        {(!user || userData?.role !== "profissional") && (
+          <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/35 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-yellow-500/20 rounded-xl mt-0.5">
+                <Wrench className="text-yellow-400" size={18} />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-white uppercase tracking-wider">
+                  🛠️ Painel do Mecânico (Modo de Teste)
+                </h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-xl leading-relaxed">
+                  {user 
+                    ? `Sua conta atual é de Cliente. Clique ao lado para alternar para o Modo Mecânico de Teste de forma instantânea e ganhar 1.000 créditos fictícios!` 
+                    : `Para simular chamados de emergência, desbloquear contatos diretos e testar a compra de créditos fictícios, ative o Modo Mecânico.`
+                  }
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  await signIn("profissional", true);
+                  alert("Sucesso! Modo Mecânico de Teste ativado com 1.000 créditos grátis para você usar!");
+                } catch (e: any) {
+                  alert("Erro ao entrar: " + e.message);
+                }
+              }}
+              className="w-full md:w-auto px-5 py-3 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-black text-xs transition-colors duration-200 active:scale-95 shadow-[0_0_15px_rgba(234,179,8,0.3)] flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <Zap size={14} className="fill-slate-950" />
+              Ativar Modo Mecânico
+            </button>
+          </div>
+        )}
 
         {/* Dynamic Mural header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 bg-slate-900/60 p-5 rounded-2xl border border-cyan-500/20 backdrop-blur-md">

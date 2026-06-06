@@ -87,11 +87,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         const existingData = userSnap.data();
         if (existingData && existingData.role !== role) {
-          const updatedPayload = {
+          const updatedPayload: any = {
             ...existingData,
             role,
-            credits: existingData.credits !== undefined ? existingData.credits : 1000
           };
+          
+          if (role === "profissional") {
+            updatedPayload.serviceType = existingData.serviceType || "mecanico";
+            updatedPayload.plan = existingData.plan || "bronze";
+            updatedPayload.credits = existingData.credits !== undefined ? existingData.credits : 1000;
+          }
+          
           await setDoc(userRef, updatedPayload);
           setUserData(updatedPayload);
         } else {

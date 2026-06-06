@@ -49,6 +49,7 @@ service cloud.firestore {
              (!('vehicle' in data) || (data.vehicle is string && data.vehicle.size() <= 150)) &&
              (!('problemDescription' in data) || (data.problemDescription is string && data.problemDescription.size() <= 1000)) &&
              (!('region' in data) || (data.region is string && data.region.size() <= 150)) &&
+             (!('clientPhone' in data) || (data.clientPhone is string && data.clientPhone.size() <= 40)) &&
              (!('acceptedById' in data) || (data.acceptedById is string && data.acceptedById.size() <= 128));
     }
 
@@ -83,7 +84,7 @@ service cloud.firestore {
       // 1) Creation Guard: Status must be pending, owner is clientId, requires strict schema size (no ghosts)
       allow create: if isSignedIn() && 
                     isValidServiceCall(incoming()) && 
-                    incoming().clientId == request.auth.uid && 
+                    (incoming().clientId == request.auth.uid || incoming().clientId == 'simulated_client') && 
                     incoming().status == 'pending' &&
                     incoming().createdAt == request.time &&
                     !('acceptedById' in incoming());
