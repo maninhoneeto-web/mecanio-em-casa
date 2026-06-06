@@ -1,4 +1,4 @@
-import logoImg from "../assets/images/mecanico_casa_clean_1780786158558.png";
+import logoImg from "../assets/images/mecanico_casa_logo_1780785141399.png";
 
 interface LogoProps {
   className?: string;
