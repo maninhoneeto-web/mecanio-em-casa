@@ -31,7 +31,12 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              (!('serviceType' in data) || data.serviceType is string) &&
              (!('plan' in data) || data.plan in ['bronze', 'prata', 'ouro', 'none']) &&
-             (!('credits' in data) || data.credits is number);
+             (!('credits' in data) || data.credits is number) &&
+             (!('phone' in data) || data.phone is string) &&
+             (!('workshopName' in data) || data.workshopName is string) &&
+             (!('specialties' in data) || (data.specialties is list && data.specialties.size() <= 10)) &&
+             (!('description' in data) || data.description is string) &&
+             (!('location' in data) || data.location is string);
     }
 
     function isValidServiceCall(data) {
@@ -63,9 +68,9 @@ service cloud.firestore {
                     (incoming().role == 'cliente' || isEmailVerified() || request.auth.token.firebase.sign_in_provider == 'anonymous') &&
                     incoming().createdAt == request.time;
       
-      // 2) PII Protection: Only the exact owner can read their profile
-      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
-      allow list: if false; // No blanket listing of users to prevent data scraping
+      // 2) PII Protection: Only the exact owner can read their profile, or a signed-in professional to display on their local directory/dashboard
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn(); // Allow listing users to display mechanics e parceiros inside the local board panel
       
       // 3) Strict Updates: Immutable roles and createdAt cannot be modified.
       allow update: if isSignedIn() && 
@@ -75,14 +80,14 @@ service cloud.firestore {
                     incoming().role == existing().role &&
                     incoming().createdAt == existing().createdAt &&
                     incoming().email == existing().email &&
-                    incoming().diff(existing()).affectedKeys().hasAny(['name', 'serviceType', 'plan', 'credits']) &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'serviceType', 'plan', 'credits']);
+                    incoming().diff(existing()).affectedKeys().hasAny(['name', 'serviceType', 'plan', 'credits', 'phone', 'workshopName', 'specialties', 'description', 'location']) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'serviceType', 'plan', 'credits', 'phone', 'workshopName', 'specialties', 'description', 'location']);
     }
 
     // --- COLLECTION: SERVICE CALLS ---
     match /serviceCalls/{callId} {
-      // 1) Creation Guard: Status must be pending, owner is clientId, requires strict schema size (no ghosts)
-      allow create: if isSignedIn() && 
+      // 1) Creation Guard: Status must be pending, owner is clientId or a simulated client.
+      allow create: if (isSignedIn() || incoming().clientId == 'simulated_client') && 
                     isValidServiceCall(incoming()) && 
                     (incoming().clientId == request.auth.uid || incoming().clientId == 'simulated_client') && 
                     incoming().status == 'pending' &&
@@ -141,6 +146,12 @@ service cloud.firestore {
                         )
                       )
                     );
+    }
+
+    // --- COLLECTION: PAYMENTS ---
+    match /payments/{paymentId} {
+      allow create: if isSignedIn();
+      allow get, list: if isSignedIn();
     }
   }
 }

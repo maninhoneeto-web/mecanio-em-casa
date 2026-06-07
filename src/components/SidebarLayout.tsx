@@ -124,86 +124,88 @@ export default function SidebarLayout({ children, onOpenCredits }: SidebarLayout
           )}
         </div>
 
-        {/* Dynamic Promo Banner / Propaganda de Créditos */}
-        <div className="px-4 py-2 mt-2">
-          <div className="relative overflow-hidden bg-gradient-to-br from-yellow-400/10 via-amber-400/5 to-[#39ff14]/10 border-2 border-yellow-400/40 rounded-2xl p-4 shadow-[0_0_20px_rgba(234,179,8,0.15)] flex flex-col gap-3 group">
-            <div className="absolute top-0 right-0 p-1 bg-yellow-400 text-slate-950 rounded-bl-xl text-[9px] font-black tracking-widest uppercase">
-              RECOMENDADO
-            </div>
-            <div className="flex items-center gap-2">
-              <Zap className="text-yellow-400 fill-yellow-400 animate-bounce" size={18} />
-              <span className="text-xs font-black text-yellow-400 uppercase tracking-widest">PROPAGANDA DE PARCERIA</span>
-            </div>
-            <div>
-              <h5 className="text-xs font-bold text-white mb-1">Dobre Seus Lucros Hoje!</h5>
-              <p className="text-[10px] text-slate-300 leading-relaxed">
-                Adquira créditos e garanta acesso imediato às melhores ordens de suspensão, elétrica e guincho de Brasília!
-              </p>
-            </div>
-            
-            <div className="space-y-1.5 pt-1 border-t border-slate-800">
-               {stats.map(plan => (
-                 <div key={plan.label} className="flex justify-between items-center text-[10px] font-semibold bg-slate-950/50 px-2 py-1.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-300">{plan.label}:</span>
-                    <span className="text-[#39ff14] font-bold">{plan.cr}</span>
-                    <span className="text-slate-400">{plan.value}</span>
-                 </div>
-               ))}
-            </div>
-
-            <button
-              onClick={() => {
-                if (onOpenCredits) {
-                  onOpenCredits();
-                } else {
-                  navigate("/radar");
-                  setTimeout(() => {
-                    // Quick state bridge fallback or direct alert instructions
-                    const el = document.getElementById("open-credits-btn");
-                    if (el) el.click();
-                  }, 100);
-                }
-                setIsOpen(false);
-              }}
-              className="w-full bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-600 hover:brightness-110 text-slate-950 font-black text-[11px] py-2.5 rounded-xl transition flex items-center justify-center gap-1.5"
-            >
-              <Sparkles size={12} />
-              COMPRAR CRÉDITOS AGORA
-              <ArrowUpRight size={12} />
-            </button>
-          </div>
-        </div>
-
         {/* Navigation Items */}
         <nav className="flex-1 px-4 py-4 space-y-1.5 overflow-y-auto">
+          <div className="px-3 mb-2 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+            Área do Cliente
+          </div>
+
           <button 
             onClick={() => handleNav("/")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-left transition-all ${
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
               location.pathname === "/" ? "bg-slate-800 text-white border-l-4 border-[#00f3ff]" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
             }`}
           >
-            <Home size={18} />
+            <Home size={18} className="text-cyan-400" />
             Início / Pedir Socorro
           </button>
 
           <button 
-            onClick={() => handleNav("/radar")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-left transition-all ${
-              location.pathname === "/radar" ? "bg-slate-800 text-white border-l-4 border-[#00f3ff]" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
-            }`}
-          >
-            <Compass size={18} />
-            Mural de Oportunidades
-          </button>
-
-          <button 
             onClick={() => handleNav("/mapa")}
-            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold text-left transition-all ${
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
               location.pathname === "/mapa" ? "bg-slate-800 text-white border-l-4 border-[#00f3ff]" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
             }`}
           >
-            <MapPin size={18} />
-            Mapa do Cliente
+            <MapPin size={18} className="text-cyan-400" />
+            Mapa do Cliente (Socorros)
+          </button>
+
+          <div className="px-3 pt-4 mb-2 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+            Área do Mecânico & Parceiro
+          </div>
+
+          <button 
+            onClick={() => handleNav("/radar?tab=mural")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
+              location.pathname === "/radar" && (new URLSearchParams(location.search).get("tab") === "mural" || !new URLSearchParams(location.search).get("tab")) ? "bg-slate-800 text-white border-l-4 border-[#39ff14]" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+            }`}
+          >
+            <Flame size={18} className="text-[#39ff14]" />
+            Mural (Pedidos de Socorro)
+          </button>
+
+          <button 
+            onClick={() => handleNav("/radar?tab=cadastro")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
+              location.pathname === "/radar" && new URLSearchParams(location.search).get("tab") === "cadastro" ? "bg-slate-800 text-white border-l-4 border-[#39ff14]" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+            }`}
+          >
+            <Wrench size={18} className="text-yellow-400" />
+            Minha Ficha de Cadastro
+          </button>
+
+          <button 
+            onClick={() => handleNav("/radar?tab=parceiros")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
+              location.pathname === "/radar" && new URLSearchParams(location.search).get("tab") === "parceiros" ? "bg-slate-800 text-white border-l-4 border-[#39ff14]" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+            }`}
+          >
+            <Sparkles size={18} className="text-cyan-400" />
+            Mecânicos Parceiros
+          </button>
+
+          <button 
+            onClick={() => handleNav("/radar?tab=creditos")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
+              location.pathname === "/radar" && new URLSearchParams(location.search).get("tab") === "creditos" ? "bg-slate-800 text-white border-l-4 border-yellow-400" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+            }`}
+          >
+            <Coins size={18} className="text-amber-400" />
+            Adquirir Créditos (Pix)
+          </button>
+
+          <div className="px-3 pt-4 mb-2 text-[10px] font-black uppercase text-slate-500 tracking-wider">
+            Administração
+          </div>
+
+          <button 
+            onClick={() => handleNav("/radar?tab=admin")}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
+              location.pathname === "/radar" && new URLSearchParams(location.search).get("tab") === "admin" ? "bg-slate-800 text-white border-l-4 border-red-500" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
+            }`}
+          >
+            <ShieldCheck size={18} className="text-red-400" />
+            Meu Painel (Administrador)
           </button>
         </nav>
 
