@@ -87,20 +87,19 @@ service cloud.firestore {
     // --- COLLECTION: SERVICE CALLS ---
     match /serviceCalls/{callId} {
       // 1) Creation Guard: Status must be pending, owner is clientId or a simulated client.
-      allow create: if (isSignedIn() || incoming().clientId == 'simulated_client') && 
+      allow create: if (incoming().clientId == 'simulated_client' || (request.auth != null && incoming().clientId == request.auth.uid)) && 
                     isValidServiceCall(incoming()) && 
-                    (incoming().clientId == request.auth.uid || incoming().clientId == 'simulated_client') && 
                     incoming().status == 'pending' &&
                     incoming().createdAt == request.time &&
                     !('acceptedById' in incoming());
 
       // 2) Secure List Queries: Can list/get if pending (public mural list) or logged in and involved/unlocked.
       allow get: if existing().status == 'pending' || 
-                 (isSignedIn() && isValidId(callId) && 
+                 (request.auth != null && isValidId(callId) && 
                   (existing().clientId == request.auth.uid || existing().acceptedById == request.auth.uid || (existing().unlockedBy is list && request.auth.uid in existing().unlockedBy)));
                  
       allow list: if resource.data.status == 'pending' || 
-                  (isSignedIn() && 
+                  (request.auth != null && 
                    (resource.data.clientId == request.auth.uid || resource.data.acceptedById == request.auth.uid || (resource.data.unlockedBy is list && request.auth.uid in resource.data.unlockedBy)));
 
       // 3) Action-Based Updates: We divide state transitions using boolean ORs.

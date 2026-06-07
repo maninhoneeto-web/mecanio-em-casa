@@ -101,6 +101,37 @@ export default function Radar() {
     }
   }, [userData]);
 
+  // Recipient of payment states for credits & simulator
+  const [recipientPartner, setRecipientPartner] = useState<any | null>(null);
+  const [isSelectingRecipient, setIsSelectingRecipient] = useState(false);
+  const [searchRecipientQuery, setSearchRecipientQuery] = useState("");
+
+  // Sync default recipient partner to logged-in professional
+  useEffect(() => {
+    if (user && !recipientPartner) {
+      setRecipientPartner({
+        id: user.uid,
+        name: userData?.name || regName || "Mecânico Demo",
+        phone: userData?.phone || regPhone || "(61) 99999-9999",
+        workshopName: userData?.workshopName || regWorkshop || "Autônomo",
+        credits: userData?.credits !== undefined ? userData.credits : 1000,
+        plan: userData?.plan || "bronze"
+      });
+    }
+  }, [user, userData, regName, regPhone, regWorkshop]);
+
+  // Keep recipientPartner state's credits in sync if live user’s local credits changes
+  useEffect(() => {
+    if (user && userData && recipientPartner && recipientPartner.id === user.uid) {
+      if (recipientPartner.credits !== userData.credits) {
+        setRecipientPartner((prev: any) => prev ? {
+          ...prev,
+          credits: userData.credits
+        } : null);
+      }
+    }
+  }, [userData]);
+
   // Countdown timer for Pix expiration
   useEffect(() => {
     let timer: any;
@@ -311,28 +342,49 @@ export default function Radar() {
 
   // Securely confirmed payment records with logged mechanic registration data
   const handleConfirmPixPayment = async () => {
-    if (!user || !selectedPlanForPix) return;
+    if (!selectedPlanForPix) return;
     setPixStatus("processing");
+
+    // Dynamic recipient resolution
+    const targetUserId = recipientPartner?.id || user?.uid;
+    if (!targetUserId) {
+      alert("Nenhum destinatário de créditos identificado. Faça login ou selecione um parceiro.");
+      setPixStatus("pending");
+      return;
+    }
 
     setTimeout(async () => {
       try {
-        const userRef = doc(db, "users", user.uid);
-        const currentCredits = userData?.credits !== undefined ? userData.credits : 0;
+        const userRef = doc(db, "users", targetUserId);
         
-        // Target dynamic metadata fields
-        const finalName = userData?.name || regName || "Mecânico Demo";
-        const finalPhone = userData?.phone || regPhone || "(61) 99999-9999";
-        const finalWorkshop = userData?.workshopName || regWorkshop || "Autônomo";
+        // Match live index to get most actual local/db credit count
+        const targetUserFromList = partnerUsers.find((p) => p.id === targetUserId);
+        let currentCredits = 0;
+        if (targetUserFromList && targetUserFromList.credits !== undefined) {
+          currentCredits = targetUserFromList.credits;
+        } else if (targetUserId === user?.uid && userData?.credits !== undefined) {
+          currentCredits = userData.credits;
+        } else if (recipientPartner?.credits !== undefined) {
+          currentCredits = recipientPartner.credits;
+        } else {
+          currentCredits = 1000; // default initial credits for demo professional
+        }
+
+        const finalName = recipientPartner?.name || userData?.name || regName || "Mecânico Demo";
+        const finalPhone = recipientPartner?.phone || userData?.phone || regPhone || "(61) 99999-9999";
+        const finalWorkshop = recipientPartner?.workshopName || userData?.workshopName || regWorkshop || "Autônomo";
+
+        const newCreditsTotal = currentCredits + selectedPlanForPix.credits;
 
         const payload: any = {
-          credits: currentCredits + selectedPlanForPix.credits,
+          credits: newCreditsTotal,
         };
         if (selectedPlanForPix.color === "ouro") {
           payload.plan = "ouro";
         }
 
         const paymentRecord = {
-          mechanicId: user.uid,
+          mechanicId: targetUserId,
           mechanicName: finalName,
           mechanicPhone: finalPhone,
           mechanicWorkshop: finalWorkshop,
@@ -343,9 +395,18 @@ export default function Radar() {
           status: "approved",
         };
 
-        // Update database
+        // Update database for target recipient mechanical partner
         await updateDoc(userRef, payload);
         await addDoc(collection(db, "payments"), paymentRecord);
+
+        // Update the recipientPartner state local credits amount so success screens match instantly
+        if (recipientPartner && recipientPartner.id === targetUserId) {
+          setRecipientPartner((prev: any) => prev ? {
+            ...prev,
+            credits: newCreditsTotal,
+            plan: selectedPlanForPix.color === "ouro" ? "ouro" : (prev.plan || "bronze")
+          } : null);
+        }
 
         setPixStatus("success");
       } catch (err: any) {
@@ -1038,6 +1099,77 @@ export default function Radar() {
 
                   {pixStatus === "pending" && (
                     <div className="space-y-5 text-center pt-4">
+                      {/* Recipient / Pago Por card */}
+                      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-850 text-left space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Destinatário do Pix Simulado</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsSelectingRecipient(!isSelectingRecipient)}
+                            className="text-[10px] text-cyan-400 hover:underline font-bold"
+                          >
+                            {isSelectingRecipient ? "Fechar" : "Alterar Parceiro ⚡"}
+                          </button>
+                        </div>
+                        
+                        {isSelectingRecipient ? (
+                          <div className="space-y-2 pt-1">
+                            <input
+                              type="text"
+                              className="w-full bg-slate-900 border border-slate-800 text-xs rounded-lg py-2 px-3 text-white outline-none focus:border-yellow-400"
+                              placeholder="Pesquisar mecânico parceiro..."
+                              value={searchRecipientQuery}
+                              onChange={(e) => setSearchRecipientQuery(e.target.value)}
+                            />
+                            <div className="max-h-32 overflow-y-auto space-y-1 divide-y divide-slate-850 bg-slate-900 border border-slate-800 rounded-lg p-1">
+                              {partnerUsers
+                                .filter((p) => p.name?.toLowerCase().includes(searchRecipientQuery.toLowerCase()))
+                                .map((partner) => (
+                                  <button
+                                    key={partner.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setRecipientPartner({
+                                        id: partner.id,
+                                        name: partner.name || "Sem Nome",
+                                        phone: partner.phone || "",
+                                        workshopName: partner.workshopName || "Autônomo",
+                                        credits: partner.credits !== undefined ? partner.credits : 0,
+                                        plan: partner.plan || "bronze"
+                                      });
+                                      setIsSelectingRecipient(false);
+                                    }}
+                                    className="w-full text-left p-2 hover:bg-slate-800 rounded text-[11px] flex justify-between items-center transition"
+                                  >
+                                    <div>
+                                      <span className="font-bold text-white block capitalize">{partner.name}</span>
+                                      <span className="text-[9px] text-slate-500">{partner.workshopName || "Autônomo"}</span>
+                                    </div>
+                                    <span className="text-amber-500 font-mono font-bold text-[10px]">{partner.credits || 0} CR</span>
+                                  </button>
+                                ))}
+                              {partnerUsers.length === 0 && (
+                                <p className="text-[10px] text-slate-500 p-2">Nenhum parceiro encontrado.</p>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 bg-slate-900 border border-slate-850 rounded-full flex items-center justify-center text-slate-400 font-black uppercase text-xs">
+                              {(recipientPartner?.name || "MD").slice(0, 2)}
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-white capitalize leading-none">
+                                {recipientPartner?.name || "Mecânico Demo"}
+                              </p>
+                              <p className="text-[10px] text-slate-450 mt-1">
+                                Oficina: {recipientPartner?.workshopName || "Autônomo"} • Saldo: {recipientPartner?.credits} CR
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Plan details info banner */}
                       <div className="bg-slate-950 p-4 rounded-2xl border border-slate-850 flex justify-between items-center text-left">
                         <div>
@@ -1103,7 +1235,7 @@ export default function Radar() {
                       <div>
                         <h4 className="text-base font-black text-white uppercase tracking-tight">Recarga Confirmada</h4>
                         <p className="text-[11px] text-slate-400 mt-1 px-4 leading-relaxed">
-                          O Pix simulado de <b>R$ {selectedPlanForPix.price.toFixed(2).replace(".", ",")}</b> foi processado com sucesso! Seus créditos extras de <b className="text-[#39ff14]">+{selectedPlanForPix.credits} CR</b> foram agregados de forma definitiva à sua conta.
+                          O Pix simulado de <b>R$ {selectedPlanForPix.price.toFixed(2).replace(".", ",")}</b> foi processado com sucesso! Os créditos de <b className="text-[#39ff14]">+{selectedPlanForPix.credits} CR</b> foram agregados de forma definitiva à conta de <b className="capitalize text-white">{recipientPartner?.name || "Mecânico"}</b>. Novo Saldo: <b className="text-amber-400">{recipientPartner?.credits} CR</b>.
                         </p>
                       </div>
                       <button
@@ -1139,6 +1271,70 @@ export default function Radar() {
                     )}
                   </div>
 
+                  {/* Dynamic Recipient Selector before plans catalog */}
+                  <div className="p-4 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-md">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-yellow-400/10 text-yellow-400 rounded-2xl border border-yellow-450/20">
+                        <User size={18} />
+                      </div>
+                      <div className="text-left">
+                        <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Beneficiário das Moedas (Quem receberá os créditos)</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-xs font-black text-white capitalize">
+                            {recipientPartner?.name || "Nenhum Selecionado"}
+                          </span>
+                          <span className="text-[9px] text-[#39ff14] bg-[#39ff14]/15 border border-[#39ff14]/30 px-2 py-0.5 rounded-full font-black uppercase tracking-tight">
+                            {recipientPartner?.workshopName || "Autônomo"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={recipientPartner?.id || ""}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          const found = partnerUsers.find((p) => p.id === selectedId);
+                          if (found) {
+                            setRecipientPartner({
+                              id: found.id,
+                              name: found.name || "Sem Nome",
+                              phone: found.phone || "",
+                              workshopName: found.workshopName || "Autônomo",
+                              credits: found.credits !== undefined ? found.credits : 0,
+                              plan: found.plan || "bronze"
+                            });
+                          } else if (selectedId === user?.uid) {
+                            setRecipientPartner({
+                              id: user.uid,
+                              name: userData?.name || regName || "Mecânico Demo",
+                              phone: userData?.phone || regPhone || "(61) 99999-9999",
+                              workshopName: userData?.workshopName || regWorkshop || "Autônomo",
+                              credits: userData?.credits !== undefined ? userData.credits : 1000,
+                              plan: userData?.plan || "bronze"
+                            });
+                          }
+                        }}
+                        className="bg-slate-950 border border-slate-850 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:border-amber-400 text-white flex-1 md:w-56"
+                      >
+                        <option value="">Selecione parceiro destinatário...</option>
+                        {user && (
+                          <option value={user.uid}>
+                            Você: {userData?.name || regName || "Mecânico Demo"}
+                          </option>
+                        )}
+                        {partnerUsers
+                          .filter((p) => p.id !== user?.uid)
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name || "Incompleto"} ({p.workshopName || "Autônomo"})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Plano 1: Bronze */}
                     <div className="bg-[#cd7f32]/5 border border-[#cd7f32]/35 rounded-3xl p-5 flex flex-col justify-between shadow-md relative overflow-hidden group hover:border-[#cd7f32] transition">
@@ -1150,7 +1346,7 @@ export default function Radar() {
                           <span className="text-base font-black text-white">R$ 159,00</span>
                         </div>
                         <h4 className="text-lg font-black text-slate-100 uppercase tracking-tight">1.200 CR</h4>
-                        <p className="text-[11px] text-slate-400 py-3 border-t border-slate-800/60 mt-3 leading-relaxed">
+                        <p className="text-[11px] text-slate-400 py-3 border-t border-slate-800/60 mt-3 leading-relaxed text-left">
                           Receba 1.200 créditos fictícios para usar no radar de socorro rápido de Brasília. Permite liberar aproximadamente 10 contatos diretos.
                         </p>
                       </div>
@@ -1163,7 +1359,7 @@ export default function Radar() {
                     </div>
 
                     {/* Plano 2: Prata */}
-                    <div className="bg-slate-300/5 border border-slate-300/35 rounded-3xl p-5 flex flex-col justify-between shadow-md relative overflow-hidden group hover:border-slate-3D0 transition">
+                    <div className="bg-slate-300/5 border border-slate-300/35 rounded-3xl p-5 flex flex-col justify-between shadow-md relative overflow-hidden group hover:border-slate-3D0 transition bg-slate-400/[0.02]">
                       <div>
                         <div className="flex justify-between items-center mb-3">
                           <span className="text-[10px] font-black uppercase bg-slate-300/20 text-slate-200 border border-slate-300/40 px-2.5 py-1 rounded-full">
@@ -1172,7 +1368,7 @@ export default function Radar() {
                           <span className="text-base font-black text-white">R$ 359,00</span>
                         </div>
                         <h4 className="text-lg font-black text-slate-100 uppercase tracking-tight">3.500 CR</h4>
-                        <p className="text-[11px] text-slate-400 py-3 border-t border-slate-800/60 mt-3 leading-relaxed">
+                        <p className="text-[11px] text-slate-400 py-3 border-t border-slate-800/60 mt-3 leading-relaxed text-left">
                           Receba 3.500 créditos fictícios na carteira de parceiro. É a melhor opção intermediária para mecânicos ou auto elétricas de médio fluxo.
                         </p>
                       </div>
@@ -1185,8 +1381,8 @@ export default function Radar() {
                     </div>
 
                     {/* Plano 3: Ouro */}
-                    <div className="bg-yellow-550/5 border border-yellow-450/45 rounded-3xl p-5 flex flex-col justify-between shadow-md relative overflow-hidden group hover:border-yellow-400 transition bg-yellow-400/5">
-                      <div className="absolute top-0 right-0 py-1 px-3 bg-yellow-450 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-bl-3xl">RECOMENDADO</div>
+                    <div className="bg-[#eab308]/5 border border-[#eab308]/35 rounded-3xl p-5 flex flex-col justify-between shadow-md relative overflow-hidden group hover:border-yellow-400 transition bg-yellow-400/5">
+                      <div className="absolute top-0 right-0 py-1 px-3 bg-yellow-400 text-slate-950 font-black text-[9px] uppercase tracking-wider rounded-bl-3xl">RECOMENDADO</div>
                       
                       <div>
                         <div className="flex justify-between items-center mb-3 pt-2">
@@ -1196,7 +1392,7 @@ export default function Radar() {
                           <span className="text-base font-black text-yellow-400">R$ 749,00</span>
                         </div>
                         <h4 className="text-lg font-black text-slate-100 uppercase tracking-tight">5.000 CR</h4>
-                        <p className="text-[11px] text-slate-400 py-3 border-t border-slate-800/40 mt-3 leading-relaxed">
+                        <p className="text-[11px] text-slate-400 py-3 border-t border-slate-800/40 mt-3 leading-relaxed text-left">
                           Receba 5.000 créditos fictícios com prioridade nas notificações do radar de leads. Destinado a empresas consolidadas de guinchos e oficinas de alta performance.
                         </p>
                       </div>

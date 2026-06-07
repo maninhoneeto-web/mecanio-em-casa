@@ -100,13 +100,19 @@ export default function SidebarLayout({ children, onOpenCredits }: SidebarLayout
                   </p>
                 </div>
               </div>
-              <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+              <button
+                onClick={() => handleNav("/radar?tab=creditos")}
+                className="w-full bg-slate-950/80 p-3 rounded-xl border border-slate-800 flex justify-between items-center hover:border-yellow-400 hover:bg-slate-900 transition text-left group"
+              >
                 <div className="flex items-center gap-2">
                   <Coins className="text-yellow-400 w-4 h-4" />
-                  <span className="text-xs text-slate-400 font-bold">Créditos:</span>
+                  <span className="text-xs text-slate-400 font-bold group-hover:text-yellow-400 transition">Créditos:</span>
                 </div>
-                <span className="text-base font-black text-cyan-400">{userData?.credits || 0} CR</span>
-              </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-black text-cyan-400 group-hover:text-yellow-400 transition">{userData?.credits !== undefined ? userData.credits : 0} CR</span>
+                  <ArrowUpRight size={14} className="text-slate-500 group-hover:text-yellow-400 transition" />
+                </div>
+              </button>
             </>
           ) : (
             <div className="text-center py-2">
@@ -182,16 +188,6 @@ export default function SidebarLayout({ children, onOpenCredits }: SidebarLayout
           >
             <Sparkles size={18} className="text-cyan-400" />
             Mecânicos Parceiros
-          </button>
-
-          <button 
-            onClick={() => handleNav("/radar?tab=creditos")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-left transition-all ${
-              location.pathname === "/radar" && new URLSearchParams(location.search).get("tab") === "creditos" ? "bg-slate-800 text-white border-l-4 border-yellow-400" : "text-slate-400 hover:bg-slate-800/40 hover:text-white"
-            }`}
-          >
-            <Coins size={18} className="text-amber-400" />
-            Adquirir Créditos (Pix)
           </button>
 
           <div className="px-3 pt-4 mb-2 text-[10px] font-black uppercase text-slate-500 tracking-wider">
